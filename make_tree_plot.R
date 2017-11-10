@@ -2,12 +2,19 @@ library(ggplot2, lib.loc="/home/leej39/miniconda3/lib/R/library")
 suppressMessages(library(ggtree, lib.loc="/home/leej39/miniconda3/lib/R/library"))
 suppressMessages(library(dplyr, lib.loc="/home/leej39/miniconda3/lib/R/library"))
 library(reshape2, lib.loc="/home/leej39/miniconda3/lib/R/library")
+library(dnaplotr, lib.loc="/home/leej39/miniconda3/lib/R/library") ### from Scott Sherrill-Mix
 
 args <- commandArgs(trailingOnly = TRUE)
 
+### INPUT FILE PATHS
+
 tree_fp <- args[1]
 filtered_blast_fp <- args[2]
-ltp_fp <- args[3]
+masked_fasta_fp <- args[3]
+ltp_fp <- args[4]
+
+### OUTPUT FILE PATHS
+plotDNA_out_fp <- paste0(tree_fp, ".plotDNA.pdf")
 output_fp <- paste0(tree_fp, ".plot.pdf")
 
 ### READ IN TREE
@@ -21,7 +28,18 @@ control_id <- fb[order(fb$bit_score),"subject_id"][1]
 ### READ IN LTP
 ltp <- read.table(file=ltp_fp, header=F, sep="\t", as.is=T)[ ,c(1,5)] %>%
   rename(accession=V1, organism=V5)
-  
+
+### plotDNA
+seqs <- read.table(file=masked_fasta_fp, header=F, as.is=T, fill=T)$V1
+seq_name_pos <- grep("^>", seqs)
+seq_accession <- gsub(">", "", seqs[seq_name_pos])
+seqs <- seqs[seq_name_pos+1]
+plotdna <- plotDNA(seqs)
+
+pdf(file="~/pngout.pdf")
+plotDNA(seqs)
+dev.off()
+
 ### CREATE A DATA FRAME TO MODIFY TIP.LABELS
 df <- data.frame(line=1:length(tree$tip.label), tip.label=tree$tip.label) %>%
   merge(ltp, by.x="tip.label", by.y="accession", all.x=T) %>%
@@ -36,3 +54,4 @@ max_x_pos <- max(treeplot$data$x)
 treeplot <- treeplot %<+% df + geom_tree() + theme_tree() + xlab("") + 
   ylab("") + geom_tiplab(aes(label=organism,color=type)) + theme_tree2() + ggplot2::xlim(0, 2*max_x_pos)
 ggsave(filename=output_fp, plot=treeplot)
+
