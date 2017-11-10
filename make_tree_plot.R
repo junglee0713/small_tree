@@ -14,8 +14,8 @@ masked_fasta_fp <- args[3]
 ltp_fp <- args[4]
 
 ### OUTPUT FILE PATHS
-plotDNA_out_fp <- paste0(tree_fp, ".plotDNA.pdf")
-output_fp <- paste0(tree_fp, ".plot.pdf")
+plotDNA_out_fp <- gsub(".tree.nwk$", ".plotDNA.pdf", tree_fp)
+output_fp <- gsub(".tree.nwk$", ".tree.pdf", tree_fp)
 
 ### READ IN TREE
 tree <- read.tree(tree_fp)
