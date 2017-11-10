@@ -114,9 +114,16 @@ qiime tools export ${ROOTED_TREE_FP} --output-dir "$(dirname ${QUERY_FASTA})/roo
 mv "$(dirname ${QUERY_FASTA})/rooted_tree/tree.nwk" "$(dirname ${QUERY_FASTA})/rooted_tree/$(basename ${QUERY_FASTA}).tree.nwk"
 
 ###=====================
+### EXPORT MASKED SEQUENCES
+###=====================
+
+qiime tools export ${MASKED_TREE_INPUT_FP} --output-dir "$(dirname ${QUERY_FASTA})/masked_sequences"
+
+###=====================
 ### MAKE TREE PLOT
 ###=====================
 
 TREE_FP="$(dirname ${QUERY_FASTA})/rooted_tree/$(basename ${QUERY_FASTA}).tree.nwk"
 FILTERED_BLASTOUT_FP="${QUERY_FASTA}.blastout_filtered"
-${Rscript_FP} --vanilla ${MAKE_TREE_PLOT_FP} ${TREE_FP} ${FILTERED_BLASTOUT_FP} ${LTP_SPREADSHEET} 
+MASKED_FASTA_FP="$(dirname ${QUERY_FASTA})/masked_sequences/aligned-dna-sequences.fasta"
+${Rscript_FP} --vanilla ${MAKE_TREE_PLOT_FP} ${TREE_FP} ${FILTERED_BLASTOUT_FP} ${MASKED_FASTA_FP} ${LTP_SPREADSHEET} 
