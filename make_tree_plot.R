@@ -1,8 +1,9 @@
-library(ggplot2, lib.loc="/home/leej39/miniconda3/lib/R/library")
-suppressMessages(library(ggtree, lib.loc="/home/leej39/miniconda3/lib/R/library"))
-suppressMessages(library(dplyr, lib.loc="/home/leej39/miniconda3/lib/R/library"))
-library(reshape2, lib.loc="/home/leej39/miniconda3/lib/R/library")
-library(dnaplotr, lib.loc="/home/leej39/miniconda3/lib/R/library") ### from Scott Sherrill-Mix
+library(ggplot2)
+library(ggtree)
+library(dplyr)
+library(reshape2)
+library(dnaplotr)
+library(ape)
 
 args <- commandArgs(trailingOnly = TRUE)
 
@@ -24,6 +25,9 @@ tree <- read.tree(tree_fp)
 fb <- read.table(file=filtered_blast_fp, header=T, sep="\t", as.is=T)
 query_id <- unique(fb$query_id)
 control_id <- fb[order(fb$bit_score),"subject_id"][1] 
+
+### CHANGE ROOTING 
+tree <- root(tree, outgroup=control_id)
 
 ### READ IN LTP
 ltp <- read.table(file=ltp_fp, header=F, sep="\t", as.is=T)[ ,c(1,5)] %>%
@@ -59,8 +63,19 @@ m <- seqs %>%
   
 groupOrder <- c("query", "similar", "control")
 
-pdf(file=plotDNA_out_fp)
+pdf(file=plotDNA_out_fp, width=15, height=5)
   par(mar=c(6.5, 5, 5, 5))
-  plotDNA(seqs, groups=factor(m$type, levels=groupOrder))
-dev.off()
+  alignment_width <- unique(nchar(seqs))
+  window_width <- 100 ### size of each frame of the alignment plot
 
+  num_frames <- ceiling(alignment_width/window_width)
+  start_positions <- window_width*(0:(num_frames-1))+1
+  end_positions <- window_width*(1:num_frames)
+  end_positions[num_frames] <- alignment_width
+
+  for (i in 1:num_frames) {
+    plotDNA(substr(seqs, start_positions[i], end_positions[i]), 
+        groups=factor(m$type, levels=groupOrder), 
+        xStart=start_positions[i])
+  }
+dev.off()

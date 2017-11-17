@@ -1,6 +1,6 @@
-library(qiimer, lib.loc="/home/leej39/miniconda3/lib/R/library")
-library(magrittr, lib.loc="/home/leej39/miniconda3/lib/R/library")
-suppressMessages(library(dplyr, lib.loc="/home/leej39/miniconda3/lib/R/library"))
+library(qiimer)
+library(magrittr)
+library(dplyr)
 
 args <- commandArgs(trailingOnly = TRUE)
 blast_out_fp <- args[1] 
