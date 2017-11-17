@@ -6,37 +6,36 @@ if [ $# -ne 1 ]; then
 fi
 
 QUERY_FASTA=$1
+QUERY_DIR=$(dirname ${QUERY_FASTA})
+QUERY_BASENAME=$(basename ${QUERY_FASTA})
 
 ### Rscript PATH
 Rscript_FP="/home/leej39/miniconda3/bin/Rscript"
 
-### SCRIPT TO MAKE A "BLOCKED" FASTA INTO AN "UNBLOCKED" ONE
-BLOCK2UNBLOCK_FP="/home/leej39/small_tree/block2unblock.R"
-
 ### SCRIPT TO FILTER A BLAST RESULT
-FILTER_BLAST_FP="/home/leej39/small_tree/filter_blastout.R"
+FILTER_BLAST_FP="./filter_blastout.R"
 
 ### SCRIPT TO MAKE A TREE PLOT
-MAKE_TREE_PLOT_FP="/home/leej39/small_tree/make_tree_plot.R"
+MAKE_TREE_PLOT_FP="./make_tree_plot.R"
 
 ### BLAST PARAMETERS
 BLAST_EVALUE=1e-5
 BLAST_OUTFMT=7
-BLAST_DB="/home/leej39/small_tree/blastdb/LTP"
+BLAST_DB="./blastdb/LTP"
 BLAST_NUM_THREADS=4
 
 ### LTP FASTA 
-LTP_FASTA="/home/leej39/small_tree/LTP/LTPs128_SSU_unaligned_processed.fasta"
+LTP_FASTA="./LTP/LTPs128_SSU_unaligned_processed.fasta"
 
 ### LTP SPREADSHEET
-LTP_SPREADSHEET="/home/leej39/small_tree/LTP/LTPs128_SSU.csv"
+LTP_SPREADSHEET="./LTP/LTPs128_SSU.csv"
 
 ###=====================
 ### MAKE AN "UNBLOCKED" VERSION OF THE QUERY FASTA
 ###=====================
 
-${Rscript_FP} --vanilla ${BLOCK2UNBLOCK_FP} ${QUERY_FASTA}
-UNBLOCKED_QUERY_FASTA="$(dirname ${QUERY_FASTA})/unblocked_$(basename ${QUERY_FASTA})"
+UNBLOCKED_QUERY_FASTA="${QUERY_DIR}/unblocked_${QUERY_BASENAME}"
+cat ${QUERY_FASTA} | awk '/^>/ {printf("\n%s\n",$1);next} {printf("%s",$0)} END {printf("\n")}' | awk 'NR>1 {print}' > ${UNBLOCKED_QUERY_FASTA}
 
 ###=====================
 ### BLAST AGAINST THE DATABASE
@@ -110,20 +109,20 @@ qiime phylogeny midpoint-root \
 ### EXPORT ROOTED TREE AND RENAME
 ###=====================
 
-qiime tools export ${ROOTED_TREE_FP} --output-dir "$(dirname ${QUERY_FASTA})/rooted_tree"
-mv "$(dirname ${QUERY_FASTA})/rooted_tree/tree.nwk" "$(dirname ${QUERY_FASTA})/rooted_tree/$(basename ${QUERY_FASTA}).tree.nwk"
+qiime tools export ${ROOTED_TREE_FP} --output-dir "${QUERY_DIR}/rooted_tree"
+mv "${QUERY_DIR}/rooted_tree/tree.nwk" "${QUERY_DIR}/rooted_tree/${QUERY_BASENAME}.tree.nwk"
 
 ###=====================
 ### EXPORT MASKED SEQUENCES
 ###=====================
 
-qiime tools export ${MASKED_TREE_INPUT_FP} --output-dir "$(dirname ${QUERY_FASTA})/masked_sequences"
+qiime tools export ${MASKED_TREE_INPUT_FP} --output-dir "${QUERY_DIR}/masked_sequences"
 
 ###=====================
 ### MAKE TREE PLOT
 ###=====================
 
-TREE_FP="$(dirname ${QUERY_FASTA})/rooted_tree/$(basename ${QUERY_FASTA}).tree.nwk"
+TREE_FP="${QUERY_DIR}/rooted_tree/${QUERY_BASENAME}.tree.nwk"
 FILTERED_BLASTOUT_FP="${QUERY_FASTA}.blastout_filtered"
-MASKED_FASTA_FP="$(dirname ${QUERY_FASTA})/masked_sequences/aligned-dna-sequences.fasta"
+MASKED_FASTA_FP="${QUERY_DIR}/masked_sequences/aligned-dna-sequences.fasta"
 ${Rscript_FP} --vanilla ${MAKE_TREE_PLOT_FP} ${TREE_FP} ${FILTERED_BLASTOUT_FP} ${MASKED_FASTA_FP} ${LTP_SPREADSHEET} 
