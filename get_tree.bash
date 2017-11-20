@@ -10,7 +10,7 @@ QUERY_DIR=$(dirname ${QUERY_FASTA})
 QUERY_BASENAME=$(basename ${QUERY_FASTA})
 
 ### Rscript PATH
-Rscript_FP="/home/leej39/miniconda3/bin/Rscript"
+Rscript_FP="{$HOME}/miniconda3/bin/Rscript"
 
 ### SCRIPT TO FILTER A BLAST RESULT
 FILTER_BLAST_FP="./filter_blastout.R"
