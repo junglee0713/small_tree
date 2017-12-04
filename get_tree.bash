@@ -35,7 +35,7 @@ LTP_SPREADSHEET="./LTP/LTPs128_SSU.csv"
 ###=====================
 
 UNBLOCKED_QUERY_FASTA="${QUERY_DIR}/unblocked_${QUERY_BASENAME}"
-cat ${QUERY_FASTA} | awk '/^>/ {printf("\n%s\n",$1);next} {printf("%s",$0)} END {printf("\n")}' | awk 'NR>1 {print}' > ${UNBLOCKED_QUERY_FASTA}
+cat ${QUERY_FASTA} | awk '/^>/ {printf("%s\n",$1);next} {printf("%s",$0)} END {printf("\n")}' > ${UNBLOCKED_QUERY_FASTA}
 
 ###=====================
 ### BLAST AGAINST THE DATABASE
