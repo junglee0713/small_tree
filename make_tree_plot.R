@@ -59,9 +59,11 @@ names(seqs) <- seq_accession
 ### merge sequence and df
 m <- seqs %>% 
   melt() %>%
-  merge(df, by.x="row.names", by.y="tip.label")
-  
-groupOrder <- c("query", "similar", "control")
+  merge(df, by.x="row.names", by.y="tip.label") %>%
+  select(-Row.names, -line) %>%
+  rename(seq=value) %>%
+  mutate(type=factor(type, levels=c("query", "similar", "control"))) %>%
+  arrange(type)
 
 pdf(file=plotDNA_out_fp, width=15, height=5)
   par(mar=c(6.5, 5, 5, 5))
@@ -74,8 +76,8 @@ pdf(file=plotDNA_out_fp, width=15, height=5)
   end_positions[num_frames] <- alignment_width
 
   for (i in 1:num_frames) {
-    plotDNA(substr(seqs, start_positions[i], end_positions[i]), 
-        groups=factor(m$type, levels=groupOrder), 
+    plotDNA(substr(m$seq, start_positions[i], end_positions[i]), 
+        groups=m$type, 
         xStart=start_positions[i])
   }
 dev.off()
