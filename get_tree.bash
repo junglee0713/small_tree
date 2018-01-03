@@ -1,16 +1,13 @@
 #!/bin/bash
 
 if [ $# -ne 1 ]; then
-        echo "Usage: $0 path/to/query_fasta"
+        echo "Usage: $0 absolute/path/to/query_fasta"
         exit 1
 fi
 
 QUERY_FASTA=$1
 QUERY_DIR=$(dirname ${QUERY_FASTA})
 QUERY_BASENAME=$(basename ${QUERY_FASTA})
-
-### Rscript PATH
-Rscript_FP="${HOME}/miniconda3/bin/Rscript"
 
 ### SCRIPT TO FILTER A BLAST RESULT
 FILTER_BLAST_FP="./filter_blastout.R"
@@ -30,12 +27,6 @@ LTP_FASTA="./LTP/LTPs128_SSU_unaligned_processed.fasta"
 ### LTP SPREADSHEET
 LTP_SPREADSHEET="./LTP/LTPs128_SSU.csv"
 
-### SCRIPT TO TRIM UNINFORMATIVE COLUMNS FROM ALIGNED SEQUENCES
-TRIM_FP="/home/leej39/miniconda3/bin/o-trim-uninformative-columns-from-alignment"
-
-### RAxML SCRIPT
-RAxML="/home/leej39/standard-RAxML-8.2.11/raxmlHPC-PTHREADS-AVX"
-
 ###=====================
 ### MAKE AN "UNBLOCKED" VERSION OF THE QUERY FASTA
 ###=====================
@@ -54,7 +45,7 @@ blastn -evalue ${BLAST_EVALUE} -outfmt ${BLAST_OUTFMT} -db ${BLAST_DB} -query ${
 ### FILTER BLAST RESULT
 ###=====================
 
-${Rscript_FP} --vanilla ${FILTER_BLAST_FP} ${BLAST_OUT_FP}
+Rscript --vanilla ${FILTER_BLAST_FP} ${BLAST_OUT_FP}
 rm -f ${BLAST_OUT_FP}
 
 ###=====================
@@ -64,8 +55,6 @@ rm -f ${BLAST_OUT_FP}
 ACCESSION="${QUERY_FASTA}.blastout_filtered_accession_only"
 UNALIGNED_TREE_INPUT_FASTA_FP="${QUERY_FASTA}_unaligned.tree_input"
 grep -A 1 --no-group-separator -Fwf ${ACCESSION} ${LTP_FASTA} > ${UNALIGNED_TREE_INPUT_FASTA_FP}
-cat ${UNBLOCKED_QUERY_FASTA} >> ${UNALIGNED_TREE_INPUT_FASTA_FP}
-rm -f ${UNBLOCKED_QUERY_FASTA}
 
 ###=====================
 ### ALIGN TREE INPUT
@@ -84,29 +73,44 @@ cat ${ALIGNED_TREE_INPUT_FASTA_FP} | awk '/^>/ {printf("\n%s\n",$1);next} {print
 rm -f ${ALIGNED_TREE_INPUT_FASTA_FP}
 
 ###=====================
-### TRIM UNINFORMATIVE COLUMNS FROM MASK ALIGNMENT
+### MAKE TREE USING REFERENCE SEQUENCES ONLY
 ###=====================
 
-TRIMMED_TREE_INPUT="${QUERY_FASTA}_unblocked_aligned.tree_input-TRIMMED"
-${TRIM_FP} ${UNBLOCKED_ALIGNED_TREE_INPUT}
+raxmlHPC -m GTRGAMMA -p 12345 -s ${UNBLOCKED_ALIGNED_TREE_INPUT} -w ${QUERY_DIR} -n RefTree
+
+###=====================
+### INSERT QUERY SEQEUNCE INTO THE ALIGNED REFERENCE SEQUENCES MAKE 
+###=====================
+
+COMBINED_ALIGNED="${QUERY_FASTA}_combined_aligned"
+muscle -profile -in1 ${UNBLOCKED_ALIGNED_TREE_INPUT} -in2 ${UNBLOCKED_QUERY_FASTA} -out ${COMBINED_ALIGNED}
+rm -f ${UNBLOCKED_QUERY_FASTA}
 rm -f ${UNBLOCKED_ALIGNED_TREE_INPUT}
 
 ###=====================
-### MAKE TREE
+### INSERT QUERY SEQEUNCE INTO THE EXISTING TREE  
 ###=====================
 
-${RAxML} -m GTRCAT -p 12345 -s ${TRIMMED_TREE_INPUT} -w ${QUERY_DIR} -n ${QUERY_BASENAME}
+raxmlHPC -f v -s ${COMBINED_ALIGNED} -t ${QUERY_DIR}/RAxML_bestTree.RefTree -w ${QUERY_DIR} -m GTRGAMMA -n CombinedTree
 TREE_FP="${QUERY_DIR}/${QUERY_BASENAME}.tree.nwk"
-mv "${QUERY_DIR}/RAxML_bestTree.${QUERY_BASENAME}" ${TREE_FP}
+mv "${QUERY_DIR}/RAxML_labelledTree.CombinedTree" ${TREE_FP}
 rm -f ${QUERY_DIR}/RAxML_*
-rm -f "${TRIMMED_TREE_INPUT}.reduced"
+rm -f "${COMBINED_ALIGNED}.reduced"
+
+###=====================
+### MAKE UNBLOCKED COMBINED ALIGNED -- FOR DNA PLOT
+###=====================
+
+UNBLOCKED_COMBINED_ALIGNED="${QUERY_FASTA}_unblocked_combined_aligned"
+cat ${COMBINED_ALIGNED} | awk '/^>/ {printf("\n%s\n",$1);next} {printf("%s",$0)} END {printf("\n")}' | awk 'NR>1 {print}' > ${UNBLOCKED_COMBINED_ALIGNED}
+rm -f ${COMBINED_ALIGNED}
 
 ###=====================
 ### MAKE TREE PLOT
 ###=====================
 
 FILTERED_BLASTOUT_FP="${QUERY_FASTA}.blastout_filtered"
-${Rscript_FP} --vanilla ${MAKE_TREE_PLOT_FP} ${TREE_FP} ${FILTERED_BLASTOUT_FP} ${TRIMMED_TREE_INPUT} ${LTP_SPREADSHEET} 
+Rscript --vanilla ${MAKE_TREE_PLOT_FP} ${TREE_FP} ${FILTERED_BLASTOUT_FP} ${UNBLOCKED_COMBINED_ALIGNED} ${LTP_SPREADSHEET} 
 rm -f ${FILTERED_BLASTOUT_FP}
 rm -f "${FILTERED_BLASTOUT_FP}_accession_only"
-rm -f ${TRIMMED_TREE_INPUT}
+rm -f ${UNBLOCKED_COMBINED_ALIGNED}
