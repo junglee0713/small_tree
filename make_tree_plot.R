@@ -21,6 +21,9 @@ output_fp <- gsub(".tree.nwk$", ".tree.pdf", tree_fp)
 ### READ IN TREE
 tree <- read.tree(tree_fp)
 
+### RAxML adds "QUERY___" in front of query tip label
+tree$tip.label <- gsub("^QUERY___", "", tree$tip.label)
+
 ### READ IN FILTERED BLAST OUT 
 fb <- read.table(file=filtered_blast_fp, header=T, sep="\t", as.is=T)
 query_id <- unique(fb$query_id)
