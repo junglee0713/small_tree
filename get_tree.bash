@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 if [ $# -ne 1 ]; then
         echo "Usage: $0 absolute/path/to/query_fasta"
         exit 1
@@ -11,6 +13,12 @@ QUERY_BASENAME=$(basename ${QUERY_FASTA})
 
 ### SCRIPT TO FILTER A BLAST RESULT
 FILTER_BLAST_FP="./filter_blastout.R"
+
+### SCRIPT TO FILTER LTP FASTA
+FILTER_FP="./filter_fasta.py"
+
+### SCRIPT TO NORMALIZE A FASTA FILE
+NORMALIZE_FP="./normalize_fasta.py"
 
 ### SCRIPT TO MAKE A TREE PLOT
 MAKE_TREE_PLOT_FP="./make_tree_plot.R"
@@ -28,18 +36,18 @@ LTP_FASTA="./LTP/LTPs128_SSU_unaligned_processed.fasta"
 LTP_SPREADSHEET="./LTP/LTPs128_SSU.csv"
 
 ###=====================
-### MAKE AN "UNBLOCKED" VERSION OF THE QUERY FASTA
+### AVOID DUPLICATED ACCESSION BY CHANGING QUERY HEADER
 ###=====================
 
-UNBLOCKED_QUERY_FASTA="${QUERY_DIR}/unblocked_${QUERY_BASENAME}"
-cat ${QUERY_FASTA} | awk '/^>/ {printf("%s\n",">Query");next} {printf("%s",$0)} END {printf("\n")}' > ${UNBLOCKED_QUERY_FASTA}
+QUERY_FASTA_NEW="${QUERY_FASTA}.new"
+awk '{gsub(">", ">Query ", $1); print}' ${QUERY_FASTA} > ${QUERY_FASTA_NEW}
 
 ###=====================
 ### BLAST AGAINST THE DATABASE
 ###=====================
 
 BLAST_OUT_FP="${QUERY_FASTA}.blastout"
-blastn -evalue ${BLAST_EVALUE} -outfmt ${BLAST_OUTFMT} -db ${BLAST_DB} -query ${UNBLOCKED_QUERY_FASTA} -num_threads ${BLAST_NUM_THREADS} -out ${BLAST_OUT_FP}
+blastn -evalue ${BLAST_EVALUE} -outfmt ${BLAST_OUTFMT} -db ${BLAST_DB} -query ${QUERY_FASTA_NEW} -num_threads ${BLAST_NUM_THREADS} -out ${BLAST_OUT_FP}
 
 ###=====================
 ### FILTER BLAST RESULT
@@ -49,43 +57,37 @@ Rscript --vanilla ${FILTER_BLAST_FP} ${BLAST_OUT_FP}
 rm -f ${BLAST_OUT_FP}
 
 ###=====================
-### MAKE TREE INPUT FASTA
+### FILTER LTP FASTA
 ###=====================
 
 ACCESSION="${QUERY_FASTA}.blastout_filtered_accession_only"
-UNALIGNED_TREE_INPUT_FASTA_FP="${QUERY_FASTA}_unaligned.tree_input"
-grep -A 1 --no-group-separator -Fwf ${ACCESSION} ${LTP_FASTA} > ${UNALIGNED_TREE_INPUT_FASTA_FP}
+FILTERED_LTP_FASTA="${QUERY_FASTA}_filtered_LTP.fasta"
+
+python ${FILTER_FP} ${ACCESSION} ${LTP_FASTA} ${FILTERED_LTP_FASTA}
+rm -f ${ACCESSION}
 
 ###=====================
-### ALIGN TREE INPUT
+### ALIGN FILTERED LTP FASTA
 ###=====================
 
-ALIGNED_TREE_INPUT_FASTA_FP="${QUERY_FASTA}_aligned.tree_input"
-muscle -in ${UNALIGNED_TREE_INPUT_FASTA_FP} -out ${ALIGNED_TREE_INPUT_FASTA_FP}
-rm -f ${UNALIGNED_TREE_INPUT_FASTA_FP}
-
-###=====================
-### MAKE AN "UNBLOCKED" ALIGNED TREE INPUT
-###=====================
-
-UNBLOCKED_ALIGNED_TREE_INPUT="${QUERY_FASTA}_unblocked_aligned.tree_input"
-cat ${ALIGNED_TREE_INPUT_FASTA_FP} | awk '/^>/ {printf("\n%s\n",$1);next} {printf("%s",$0)} END {printf("\n")}' | awk 'NR>1 {print}' > ${UNBLOCKED_ALIGNED_TREE_INPUT}
-rm -f ${ALIGNED_TREE_INPUT_FASTA_FP}
+ALIGNED_LTP_FASTA="${QUERY_FASTA}_aligned_filtered_LTP.fasta"
+muscle -in ${FILTERED_LTP_FASTA} -out ${ALIGNED_LTP_FASTA}
+rm -f ${FILTERED_LTP_FASTA}
 
 ###=====================
 ### MAKE TREE USING REFERENCE SEQUENCES ONLY
 ###=====================
 
-raxmlHPC -m GTRGAMMA -p 12345 -s ${UNBLOCKED_ALIGNED_TREE_INPUT} -w ${QUERY_DIR} -n RefTree
+raxmlHPC -m GTRGAMMA -p 12345 -s ${ALIGNED_LTP_FASTA} -w ${QUERY_DIR} -n RefTree
 
 ###=====================
 ### INSERT QUERY SEQEUNCE INTO THE ALIGNED REFERENCE SEQUENCES MAKE 
 ###=====================
 
 COMBINED_ALIGNED="${QUERY_FASTA}_combined_aligned"
-muscle -profile -in1 ${UNBLOCKED_ALIGNED_TREE_INPUT} -in2 ${UNBLOCKED_QUERY_FASTA} -out ${COMBINED_ALIGNED}
-rm -f ${UNBLOCKED_QUERY_FASTA}
-rm -f ${UNBLOCKED_ALIGNED_TREE_INPUT}
+muscle -profile -in1 ${ALIGNED_LTP_FASTA} -in2 ${QUERY_FASTA_NEW} -out ${COMBINED_ALIGNED}
+rm -f ${ALIGNED_LTP_FASTA}
+rm -f ${QUERY_FASTA_NEW} 
 
 ###=====================
 ### INSERT QUERY SEQEUNCE INTO THE EXISTING TREE  
@@ -101,8 +103,8 @@ rm -f "${COMBINED_ALIGNED}.reduced"
 ### MAKE UNBLOCKED COMBINED ALIGNED -- FOR DNA PLOT
 ###=====================
 
-UNBLOCKED_COMBINED_ALIGNED="${QUERY_FASTA}_unblocked_combined_aligned"
-cat ${COMBINED_ALIGNED} | awk '/^>/ {printf("\n%s\n",$1);next} {printf("%s",$0)} END {printf("\n")}' | awk 'NR>1 {print}' > ${UNBLOCKED_COMBINED_ALIGNED}
+NORMALIZED_COMBINED_ALIGNED="${QUERY_FASTA}_normalized"
+python ${NORMALIZE_FP} ${COMBINED_ALIGNED} ${NORMALIZED_COMBINED_ALIGNED}
 rm -f ${COMBINED_ALIGNED}
 
 ###=====================
@@ -110,7 +112,7 @@ rm -f ${COMBINED_ALIGNED}
 ###=====================
 
 FILTERED_BLASTOUT_FP="${QUERY_FASTA}.blastout_filtered"
-Rscript --vanilla ${MAKE_TREE_PLOT_FP} ${TREE_FP} ${FILTERED_BLASTOUT_FP} ${UNBLOCKED_COMBINED_ALIGNED} ${LTP_SPREADSHEET} 
+Rscript --vanilla ${MAKE_TREE_PLOT_FP} ${TREE_FP} ${FILTERED_BLASTOUT_FP} ${NORMALIZED_COMBINED_ALIGNED} ${LTP_SPREADSHEET} 
 rm -f ${FILTERED_BLASTOUT_FP}
-rm -f "${FILTERED_BLASTOUT_FP}_accession_only"
-rm -f ${UNBLOCKED_COMBINED_ALIGNED}
+rm -f ${NORMALIZED_COMBINED_ALIGNED}
+rm -f ${TREE_FP}
